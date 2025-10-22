@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>液位-体积对照表（增强版 — LZY）</title>
+
+  <!-- Bootstrap 5 (jsDelivr CDN - 国内友好) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Plotly (jsDelivr) -->
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.24.2/plotly.min.js"></script>
+
+  <style>
+    :root{ --muted:#6c757d; --accent:#0d6efd; }
+    body{ font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Microsoft YaHei", "Noto Sans CJK SC", Arial; background:#f6f8fb; padding:12px; }
+    .app-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+    .demo-svg{ width:100%; height:260px; border-radius:8px; background:#fff; border:1px solid #e6e9ee; touch-action:none; }
+    .small-note{ font-size:12px; color:var(--muted); }
+    .param-meta{ font-family:monospace; white-space:pre-wrap; background:#fafafa; padding:8px; border-radius:6px; border:1px dashed #eee; font-size:12px; color:#222; }
+    .toast-container{ position:fixed; top:12px; right:12px; z-index:2000; }
+    .drag-handle{ cursor:grab; touch-action:none; }
+    .drag-handle:active{ cursor:grabbing; }
+    @media (max-width:767px){ .demo-svg{ height:220px; } .app-header{ align-items:flex-start; } }
+    table.table td.num{ text-align:right; font-family:monospace; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="app-header">
+      <div>
+        <h4 class="mb-0" id="title">液位-体积对照表（增强版）</h4>
+        <div class="small-note">Author: LZY &nbsp;|&nbsp; lzy.ok@outlook.com</div>
+      </div>
+      <div class="d-flex gap-2 align-items-center">
+        <select id="lang" class="form-select form-select-sm" style="max-width:120px;">
+          <option value="zh" selected>中文</option>
+          <option value="en">English</option>
+        </select>
+        <button id="saveParams" class="btn btn-sm btn-outline-secondary">保存参数</button>
+        <button id="loadParams" class="btn btn-sm btn-outline-secondary">载入参数</button>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-8">
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label" id="lblTankType">容器类型</label>
+                <select id="tankType" class="form-select"><option value="vertical">立式</option><option value="horizontal">卧式</option></select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" id="lblD">直径 D</label>
+                <div class="input-group">
+                  <input id="D" class="form-control" type="number" value="2000" />
+                  <select id="lenUnit" class="form-select" style="width:110px"><option>mm</option><option>cm</option><option>m</option><option>inch</option><option>ft</option></select>
+                </div>
+                <div class="small-note" id="noteD">直径单位</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" id="lblH">H / L</label>
+                <input id="H" class="form-control" type="number" value="3000" />
+                <div class="small-note" id="noteH">高度 / 长度，同上长度单位</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" id="lblHead">封头 h</label>
+                <input id="h_head" class="form-control" type="number" />
+                <div class="small-note" id="noteHead">默认 = 直径的 1/4</div>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label" id="lblMode">模式</label>
+                <select id="mode" class="form-select"><option value="direct">直接液位->体积</option><option value="density">密度修正</option></select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">rho_g</label>
+                <input id="rho_g" class="form-control" type="number" value="1000" />
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">rho_t</label>
+                <input id="rho_t" class="form-control" type="number" value="900" />
+              </div>
+
+              <div class="col-md-2">
+                <label class="form-label" id="lblStep">步长</label>
+                <input id="step" class="form-control" type="number" value="50" />
+                <div class="small-note" id="noteStep">同长度单位</div>
+              </div>
+
+              <div class="col-md-2">
+                <label class="form-label" id="lblEps">积分 eps</label>
+                <input id="eps" class="form-control" type="text" value="1e-8" />
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label" id="lblVolUnit">输出体积单位</label>
+                <select id="volUnit" class="form-select"><option value="L">L</option><option value="m^3">m^3</option><option value="ft^3">ft^3</option><option value="gal(US)">gal(US)</option></select>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label" id="lblPlotUnit">图表体积单位</label>
+                <select id="plotUnit" class="form-select"><option value="m^3">m^3</option><option value="L">L</option><option value="ft^3">ft^3</option><option value="gal(US)">gal(US)</option></select>
+              </div>
+
+              <!-- 起点终点 -->
+              <div class="col-md-3">
+                <label class="form-label" id="lblStart">液位起点</label>
+                <input id="startLevel" class="form-control" type="text" placeholder="默认 0" />
+                <div class="small-note" id="noteStart">留空=从0开始</div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" id="lblEnd">液位终点</label>
+                <input id="endLevel" class="form-control" type="text" placeholder="默认 满液" />
+                <div class="small-note" id="noteEnd">留空=到满罐</div>
+              </div>
+
+              <!-- 精度控制面板 -->
+              <div class="col-md-6">
+                <label class="form-label" id="lblPrecision">积分精度</label>
+                <div class="d-flex gap-2">
+                  <select id="speedMode" class="form-select" style="max-width:160px">
+                    <option value="balanced">平衡</option>
+                    <option value="fast">快速</option>
+                    <option value="precise">高精度</option>
+                  </select>
+                  <div class="input-group" style="max-width:200px">
+                    <span class="input-group-text">eps</span>
+                    <input id="epsPanel" class="form-control" value="1e-8" />
+                  </div>
+                </div>
+                <div class="small-note" id="notePrecision">拖动时使用快速模式进行近似，释放后高精度刷新</div>
+              </div>
+
+              <div class="col-12 d-flex gap-2 mt-2">
+                <button id="genBtn" class="btn btn-primary">生成对照表</button>
+                <button id="exportBtn" class="btn btn-success">导出 Excel (XLSX)</button>
+                <button id="csvBtn" class="btn btn-outline-secondary">导出 CSV</button>
+                <button id="clearBtn" class="btn btn-outline-secondary">清除表格</button>
+                <div class="ms-auto small-note" id="status">就绪</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 示意与绘图 -->
+        <div class="row g-3">
+          <div class="col-12 col-md-5">
+            <div class="card">
+              <div class="card-body">
+                <div class="d-flex justify-content-between">
+                  <strong id="lblDemo">示意（可拖拽）</strong>
+                  <div class="small-note">触控/鼠标支持</div>
+                </div>
+                <svg id="demoSVG" class="demo-svg" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet"></svg>
+
+                <div class="mt-2 d-flex gap-2">
+                  <input id="single_h" class="form-control form-control-sm" placeholder="单点 表显 h（同上长度单位）" />
+                  <button id="calcBtn" class="btn btn-sm btn-info">计算体积</button>
+                </div>
+
+                <div class="mt-2 d-flex gap-2">
+                  <input id="single_v" class="form-control form-control-sm" placeholder="体积输入" />
+                  <select id="single_v_unit" class="form-select form-select-sm" style="max-width:120px"><option>L</option><option>m^3</option><option>ft^3</option><option>gal(US)</option></select>
+                  <button id="inverseBtn" class="btn btn-sm btn-info">体积->液位</button>
+                </div>
+
+                <div class="mt-2 d-flex gap-2">
+                  <input id="pct" class="form-control form-control-sm" placeholder="满罐百分比 0-100" />
+                  <button id="pctBtn" class="btn btn-sm btn-warning">百分比->液高</button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-7">
+            <div class="card">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                  <strong id="lblPlot">V(h) 曲线</strong>
+                  <div class="d-flex gap-2">
+                    <button id="plotCopy" class="btn btn-sm btn-outline-secondary">复制 CSV</button>
+                    <button id="plotImg" class="btn btn-sm btn-outline-secondary">导出图像</button>
+                  </div>
+                </div>
+                <div id="plot" style="height:320px;"></div>
+                <div class="small-note mt-2" id="notePlot">可缩放、悬停查看点信息；选择表格中的行会高亮对应曲线点</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="col-12 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <h6 id="lblTable">对照表</h6>
+            <div style="max-height:520px; overflow:auto;">
+              <table class="table table-sm table-striped" id="dataTable">
+                <thead class="table-light"><tr><th id="th_hg">表显液位</th><th id="th_ht">真实液位</th><th id="th_v">体积</th><th id="th_pct">满罐(%)</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="mt-2 d-flex gap-2">
+              <button id="copyTable" class="btn btn-sm btn-outline-secondary">复制表格 CSV</button>
+              <button id="downloadCSV" class="btn btn-sm btn-outline-secondary">下载 CSV</button>
+              <div class="ms-auto small-note" id="rowCount">0 行</div>
+            </div>
+
+            <hr/>
+            <div><strong>参数摘要</strong></div>
+            <div id="paramMeta" class="param-meta mt-2"></div>
+
+            <div class="copyright mt-2">Author lzy.ok@outlook.com. Please indicate the source when reprinting.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast container -->
+  <div class="toast-container position-fixed top-0 end-0 p-3"></div>
+
+<script>
+/* 主要改动：
+   - 移除页面顶端静态 SheetJS 引用，在需要导出时确保 XLSX 已就绪（若未就绪则动态加载）
+   - 导出函数 exportXLSX() 内增加等待/重试与明确错误提示
+   - 保留 FileSaver.js 的懒加载逻辑（若 saveAs 未定义则动态加载）
+*/
+
+const LANG = { current: 'zh' };
+const I18N = {
+  zh: {
+    ready:'就绪', computing:'计算中...', done:'完成', copied:'已复制',
+    exportOk:'导出完成', noData:'无数据，请先生成', saveOk:'参数已保存', loadOk:'参数已载入',
+    btnGenerate:'生成对照表', btnExport:'导出 Excel (XLSX)', btnCSV:'导出 CSV', btnClear:'清除表格'
+  },
+  en: {
+    ready:'Ready', computing:'Computing...', done:'Done', copied:'Copied',
+    exportOk:'Export OK', noData:'No data, generate first', saveOk:'Parameters saved', loadOk:'Parameters loaded',
+    btnGenerate:'Generate table', btnExport:'Export Excel (XLSX)', btnCSV:'Export CSV', btnClear:'Clear table'
+  }
+};
+function t(k){ return I18N[LANG.current][k] || k; }
+
+const LENGTH_UNITS = { m:1.0, cm:0.01, mm:0.001, inch:0.0254, ft:0.3048 };
+const UNIT_FACTORS = { "m^3":1.0, "L":1000.0, "ft^3":35.3146667, "gal(US)":264.172052 };
+function toOutputUnit(v_m3, unit){ return v_m3 * (UNIT_FACTORS[unit] || 1.0); }
+function fromInputUnit(v, unit){ return v / (UNIT_FACTORS[unit] || 1.0); }
+
+/* math module (GL20 integration + tank geometry) */
+const math = (function(){
+  function area_segment_circle(R, h){
+    if (h <= 0.0) return 0.0;
+    if (h >= 2.0*R) return Math.PI * R * R;
+    let t = (R - h) / R; t = Math.max(-1.0, Math.min(1.0, t));
+    const theta = Math.acos(t);
+    const area = R*R*theta - (R - h) * Math.sqrt(Math.max(0.0, h*(2.0*R - h)));
+    return area;
+  }
+  function vol_elliptical_head_full(D, h_head){
+    const R = D/2.0, a = h_head, b = R;
+    return Math.PI * b*b * a * (2.0/3.0);
+  }
+  function vol_elliptical_head_from_top(D, h_head, x){
+    if (x <= 0.0) return 0.0;
+    const a = h_head;
+    if (x >= a) return vol_elliptical_head_full(D, h_head);
+    const R = D/2.0, b = R;
+    return Math.PI * b*b * ( x - x*x*x / (3.0 * a*a) );
+  }
+  function vol_cylinder(D,h){
+    const R = D/2.0;
+    return Math.PI * R*R * Math.max(0.0, h);
+  }
+  function volume_vertical_from_gauge(D, H, h_head, h_g){
+    if (h_g <= 0.0) return 0.0;
+    const a = h_head;
+    const total_h = H + 2.0*a;
+    if (h_g >= total_h) {
+      return vol_elliptical_head_full(D,a) + vol_cylinder(D,H) + vol_elliptical_head_full(D,a);
+    }
+    let vol = 0.0;
+    if (h_g <= a){
+      const Vh = vol_elliptical_head_full(D,a);
+      const x = a - h_g;
+      const V_top_to_x = vol_elliptical_head_from_top(D,a,x);
+      vol = Vh - V_top_to_x;
+      return vol;
+    }
+    vol += vol_elliptical_head_full(D,a);
+    if (h_g <= a + H){
+      vol += vol_cylinder(D, h_g - a);
+      return vol;
+    }
+    vol += vol_cylinder(D, H);
+    const z_top = h_g - (a + H);
+    vol += vol_elliptical_head_from_top(D, a, z_top);
+    return vol;
+  }
+  function volume_horizontal_cylinder(D,L,level){
+    const R = D/2.0; const A = area_segment_circle(R, level); return A * L;
+  }
+
+  const GL20 = (function(){
+    const x = [-0.9931285991850949,-0.9639719272779138,-0.9122344282513259,-0.8391169718222188,-0.7463319064601508,-0.6360536807265150,-0.5108670019508271,-0.3737060887154195,-0.2277858511416451,-0.07652652113349733,0.07652652113349733,0.2277858511416451,0.3737060887154195,0.5108670019508271,0.6360536807265150,0.7463319064601508,0.8391169718222188,0.9122344282513259,0.9639719272779138,0.9931285991850949];
+    const w = [0.01761400713915212,0.04060142980038694,0.06267204833410906,0.08327674157670475,0.1019301198172404,0.1181945319615184,0.1316886384491766,0.1420961093183820,0.1491729864726037,0.1527533871307259,0.1527533871307259,0.1491729864726037,0.1420961093183820,0.1316886384491766,0.1181945319615184,0.1019301198172404,0.08327674157670475,0.06267204833410906,0.04060142980038694,0.01761400713915212];
+    return {x,w};
+  })();
+
+  function glIntegrateOnce(f,a,b){
+    const xm = 0.5*(a+b), xr = 0.5*(b-a);
+    let s = 0.0;
+    for (let i=0;i<GL20.x.length;i++){
+      s += GL20.w[i] * f(xm + xr*GL20.x[i]);
+    }
+    return s * xr;
+  }
+
+  function adaptGL(f,a,b,epsAbs,epsRel,depth=0,maxDepth=18){
+    const I1 = glIntegrateOnce(f,a,b);
+    const m = 0.5*(a+b);
+    const I2 = glIntegrateOnce(f,a,m) + glIntegrateOnce(f,m,b);
+    const err = Math.abs(I2 - I1);
+    const tol = Math.max(epsAbs, epsRel*Math.abs(I2));
+    if ((err <= 10*tol) || depth >= maxDepth) return I2;
+    return adaptGL(f,a,m,epsAbs/2,epsRel,depth+1,maxDepth) + adaptGL(f,m,b,epsAbs/2,epsRel,depth+1,maxDepth);
+  }
+
+  function volume_horizontal_head_integrate(D,h_head,level,epsAbs,epsRel){
+    if (level <= 0.0) return 0.0;
+    const R = D/2.0;
+    const a = h_head;
+    if (level >= 2.0*R) return vol_elliptical_head_full(D, a);
+    function integrand(x){
+      const r = R * Math.sqrt(Math.max(0.0, 1.0 - (x/a)*(x/a)));
+      const bottom_local = R - r;
+      let y_local = level - bottom_local;
+      y_local = Math.max(0.0, Math.min(2.0*r, y_local));
+      return area_segment_circle(r, y_local);
+    }
+    return adaptGL(integrand, 0.0, a, epsAbs, epsRel, 0, 20);
+  }
+
+  function volume_horizontal_from_gauge(D,L,h_head,level,epsAbs,epsRel){
+    let vol = volume_horizontal_cylinder(D,L,level);
+    vol += volume_horizontal_head_integrate(D, h_head, level, epsAbs, epsRel);
+    vol += volume_horizontal_head_integrate(D, h_head, level, epsAbs, epsRel);
+    return vol;
+  }
+
+  function level_bounds(tank_type, D, H, h_head){
+    if (tank_type === 'vertical') return [0.0, H + 2.0*h_head];
+    return [0.0, D];
+  }
+
+  function volume_to_level(volume_m3, tank_type, D, H, h_head, opts){
+    const epsAbs = opts.epsAbs || 1e-10, epsRel = opts.epsRel || 1e-8;
+    const tol = opts.rootTol || 1e-8, maxIter = opts.rootMax || 80;
+    const [a,b] = level_bounds(tank_type, D, H, h_head);
+    function f(x){
+      if (tank_type === 'vertical') return volume_vertical_from_gauge(D,H,h_head,x) - volume_m3;
+      return volume_horizontal_from_gauge(D,H,h_head,x, epsAbs, epsRel) - volume_m3;
+    }
+    let fa = f(a), fb = f(b);
+    if (Math.abs(fa) < 1e-14) return a;
+    if (Math.abs(fb) < 1e-14) return b;
+    if (fa * fb > 0) return null;
+    let lo = a, hi = b, flo = fa, fhi = fb;
+    let x = lo, fx = flo;
+    for (let iter=0; iter<maxIter; iter++){
+      if (iter > 0){
+        let denom = (fhi - flo);
+        if (Math.abs(denom) > 1e-18){
+          x = lo - flo * (hi - lo) / denom;
+        } else {
+          x = 0.5*(lo+hi);
+        }
+      } else {
+        x = 0.5*(lo+hi);
+      }
+      fx = f(x);
+      if (Math.abs(fx) < tol) return x;
+      if (flo * fx <= 0){
+        hi = x; fhi = fx;
+      } else {
+        lo = x; flo = fx;
+      }
+    }
+    return 0.5*(lo+hi);
+  }
+
+  return {
+    area_segment_circle,
+    vol_elliptical_head_full,
+    vol_elliptical_head_from_top,
+    vol_cylinder,
+    volume_vertical_from_gauge,
+    volume_horizontal_from_gauge,
+    volume_to_level,
+    level_bounds
+  };
+})();
+
+/* UI & interaction (same logic as previous) */
+(function(){
+  const $ = id => document.getElementById(id);
+  let table = [];
+  let lastPoint = null;
+
+  function setStatus(s){ $('status').textContent = s; }
+
+  function initHeadDefault(){
+    try{
+      const lenUnit = $('lenUnit').value;
+      const factor_len = LENGTH_UNITS[lenUnit] || 0.001;
+      const D_in = parseFloat($('D').value) || 0;
+      const defaultHead = (D_in/4.0);
+      $('h_head').value = defaultHead;
+    }catch(e){}
+  }
+  initHeadDefault();
+  let headUserEdited = false;
+  $('h_head').addEventListener('input', ()=> headUserEdited = true);
+  $('D').addEventListener('input', ()=>{ if (!headUserEdited) initHeadDefault(); });
+  $('lenUnit').addEventListener('change', ()=>{ if (!headUserEdited) initHeadDefault(); });
+
+  function parseParams(requireRange=true){
+    const lenUnit = $('lenUnit').value;
+    const factor_len = LENGTH_UNITS[lenUnit] || 0.001;
+    const D_in = parseFloat($('D').value) || 0;
+    const H_in = parseFloat($('H').value) || 0;
+    const h_in_raw = parseFloat($('h_head').value);
+    const h_in = isNaN(h_in_raw) ? (D_in/4.0) : h_in_raw;
+    const D = D_in * factor_len, H = H_in * factor_len, h = h_in * factor_len;
+    if (D <= 0 || H < 0 || h <= 0) throw new Error(LANG.current==='zh' ? 'D>0, H>=0, h>0' : 'D>0, H>=0, h>0');
+    const mode = $('mode').value;
+    const rho_g = parseFloat($('rho_g').value) || 1000;
+    const rho_t = parseFloat($('rho_t').value) || 1000;
+    const step_in = parseFloat($('step').value) || 1;
+    const step = Math.abs(step_in) * factor_len;
+    if (step <= 0) throw new Error(LANG.current==='zh' ? '步长必须>0' : 'step must > 0');
+    const epsPanel = parseFloat($('epsPanel').value) || parseFloat($('eps').value) || 1e-8;
+    const speedMode = $('speedMode').value;
+    const volUnit = $('volUnit').value;
+    const plotUnit = $('plotUnit').value;
+    const tank_type = $('tankType').value;
+    const single_v_unit = $('single_v_unit') ? $('single_v_unit').value : 'L';
+    const intAbs = Math.max(1e-12, epsPanel*1e-2);
+    const intRel = Math.max(1e-12, epsPanel);
+    const rootTol = 1e-8;
+    const rootMax = 120;
+
+    const startRaw = $('startLevel').value.trim();
+    const endRaw = $('endLevel').value.trim();
+    let [h_start, h_end] = math.level_bounds(tank_type, D, H, h);
+    if (startRaw !== ''){
+      const s = parseFloat(startRaw) * factor_len;
+      if (!isNaN(s)) h_start = Math.max(h_start, s);
+    }
+    if (endRaw !== ''){
+      const e = parseFloat(endRaw) * factor_len;
+      if (!isNaN(e)) h_end = Math.min(h_end, e);
+    }
+
+    return {D,H,h,mode,rho_g,rho_t,step,speedMode,volUnit,plotUnit,tank_type,factor_len,intAbs,intRel,rootTol,rootMax,h_start,h_end,single_v_unit};
+  }
+
+  function generateTable(){
+    setStatus(t('computing'));
+    setTimeout(()=>{
+      try{
+        const params = parseParams(true);
+        const rows = [];
+        const full_vol = math.vol_elliptical_head_full(params.D,params.h)*2 + math.vol_cylinder(params.D,params.H);
+        const nSteps = Math.max(1, Math.ceil((params.h_end - params.h_start)/params.step));
+        const actualStep = (params.h_end - params.h_start)/nSteps;
+        for (let i=0;i<=nSteps;i++){
+          const lv = params.h_start + i*actualStep;
+          const h_true = (params.mode==='density' && params.rho_t!==0) ? lv * (params.rho_g / params.rho_t) : lv;
+          let v_m3 = 0;
+          if (params.tank_type === 'vertical'){
+            v_m3 = math.volume_vertical_from_gauge(params.D, params.H, params.h, h_true);
+          } else {
+            v_m3 = math.volume_horizontal_from_gauge(params.D, params.H, params.h, h_true, params.intAbs, params.intRel);
+          }
+          const pct_full = full_vol>0 ? 100.0 * v_m3 / full_vol : 0;
+          rows.push({h_g:lv, h_true, v_m3, v_out: toOutputUnit(v_m3, params.volUnit), pct_full});
+        }
+        table = rows;
+        populateTable(rows, params);
+        plotRows(rows, params);
+        updateParamMeta(params);
+        setStatus(t('done') + '：' + rows.length + (LANG.current==='zh' ? ' 行' : ' rows'));
+      }catch(err){
+        setStatus('Error');
+        showToast(err.message, 'danger');
+      }
+    }, 10);
+  }
+
+  function populateTable(rows, params){
+    const tbody = document.querySelector('#dataTable tbody');
+    tbody.innerHTML = '';
+    const factor = params.factor_len;
+    rows.forEach((r, idx)=>{
+      const tr = document.createElement('tr');
+      const unitLabel = $('lenUnit').value;
+      tr.innerHTML = `<td class="num">${(r.h_g/factor).toFixed(4)} ${unitLabel}</td><td class="num">${(r.h_true/factor).toFixed(4)} ${unitLabel}</td><td class="num">${r.v_out.toFixed(6)} ${params.volUnit}</td><td class="num">${r.pct_full.toFixed(4)}%</td>`;
+      tr.addEventListener('click', ()=>{ lastPoint = r; highlightRow(idx); plotRows(table, params); $('single_h').value = (r.h_g/params.factor_len).toFixed(6); drawDemo(); setStatus((LANG.current==='zh'?'选择行 ':'Selected ')+(idx+1)); });
+      tbody.appendChild(tr);
+    });
+    $('rowCount').textContent = rows.length + (LANG.current==='zh' ? ' 行' : ' rows');
+  }
+  function highlightRow(i){
+    [...document.querySelectorAll('#dataTable tbody tr')].forEach((tr,idx)=> tr.style.backgroundColor = idx===i ? '#eaf6ff' : '');
+  }
+
+  function plotRows(rows, params){
+    const xs = rows.map(r=>r.h_g);
+    const ys = rows.map(r=>r.v_m3 * (UNIT_FACTORS[params.plotUnit] || 1.0));
+    const data = [{ x: xs, y: ys, mode:'lines', name:`V(h_g) [${params.plotUnit}]`, line:{color:'#0d6efd'} }];
+    if (lastPoint){
+      data.push({ x:[lastPoint.h_g], y:[lastPoint.v_m3*(UNIT_FACTORS[params.plotUnit]||1.0)], mode:'markers+text', marker:{color:'red',size:8}, text:[`h=${lastPoint.h_g.toFixed(3)}m\nV=${(lastPoint.v_m3*(UNIT_FACTORS[params.plotUnit]||1.0)).toFixed(3)} ${params.plotUnit}`], textposition:'top center' });
+    }
+    const layout = { margin:{l:50,r:20,t:20,b:50}, xaxis:{title: LANG.current==='zh' ? '表显液位 h_g (m)' : 'Gauge level h_g (m)'}, yaxis:{title:(LANG.current==='zh' ? '体积' : 'Volume')+' ('+params.plotUnit+')'} };
+    Plotly.react('plot', data, layout, {responsive:true, displayModeBar:true});
+  }
+
+  function singleCalc(){
+    try{
+      const params = parseParams(false);
+      const s = $('single_h').value.trim(); if (s===''){ showToast(LANG.current==='zh' ? '请输入表显液位' : 'Please input gauge level', 'warning'); return; }
+      const h_in = parseFloat(s);
+      const h_g = h_in * params.factor_len;
+      const h_true = params.mode==='density' ? (params.rho_t!==0 ? h_g * (params.rho_g/params.rho_t) : h_g) : h_g;
+      let v_m3 = params.tank_type==='vertical' ? math.volume_vertical_from_gauge(params.D, params.H, params.h, h_true) : math.volume_horizontal_from_gauge(params.D, params.H, params.h, h_true, params.intAbs, params.intRel);
+      lastPoint = {h_g, h_true, v_m3, v_out: toOutputUnit(v_m3, params.volUnit)};
+      plotRows(table.length?table:[lastPoint], params);
+      drawDemo();
+      showToast((LANG.current==='zh'?'V=':'V=')+v_m3.toFixed(6)+' m^3', 'info');
+      setStatus(LANG.current==='zh'?'单点计算完成':'Single calc done');
+    }catch(err){ showToast(err.message,'danger'); }
+  }
+
+  function inverseCalc(){
+    try{
+      const params = parseParams(false);
+      const s = $('single_v').value.trim(); if (s===''){ showToast(LANG.current==='zh' ? '请输入体积' : 'Please input volume', 'warning'); return; }
+      const vin = parseFloat(s); const v_m3 = fromInputUnit(vin, $('single_v_unit') ? $('single_v_unit').value : 'L');
+      setStatus(LANG.current==='zh' ? '反算中...' : 'Inverting...');
+      setTimeout(()=>{
+        const level = math.volume_to_level(v_m3, params.tank_type, params.D, params.H, params.h, {epsAbs:params.intAbs, epsRel:params.intRel, rootTol:params.rootTol, rootMax:params.rootMax});
+        if (level === null){ showToast(LANG.current==='zh' ? '体积超出范围/无法反解' : 'Volume out of range/cannot invert', 'danger'); setStatus('Failed'); return; }
+        const h_g = params.mode==='density' ? (params.rho_g!==0 ? level * (params.rho_t/params.rho_g) : level) : level;
+        $('single_h').value = (h_g / params.factor_len).toFixed(6);
+        lastPoint = {h_g, h_true:level, v_m3};
+        plotRows(table.length?table:[lastPoint], params);
+        drawDemo();
+        setStatus(LANG.current==='zh' ? '体积反算完成':'Inverse done');
+        showToast(LANG.current==='zh' ? '反算完成' : 'Inverse complete', 'success');
+      }, 10);
+    }catch(err){ showToast(err.message,'danger'); }
+  }
+
+  function pctToLevel(){
+    try{
+      const params = parseParams(false);
+      const s = $('pct').value.trim(); if (s==='' ) { showToast(LANG.current==='zh' ? '请输入百分比' : 'Please input percentage', 'warning'); return; }
+      const pct = parseFloat(s); if (!(pct>=0 && pct<=100)){ showToast(LANG.current==='zh' ? '请输入 0-100' : 'Enter 0-100', 'warning'); return; }
+      const full_vol = math.vol_elliptical_head_full(params.D,params.h)*2 + math.vol_cylinder(params.D,params.H);
+      const target_vol = full_vol * pct/100.0;
+      setStatus(LANG.current==='zh' ? '反算中...' : 'Inverting...');
+      setTimeout(()=>{
+        const level = math.volume_to_level(target_vol, params.tank_type, params.D, params.H, params.h, {epsAbs:params.intAbs, epsRel:params.intRel, rootTol:params.rootTol, rootMax:params.rootMax});
+        if (level===null){ showToast(LANG.current==='zh' ? '无法反算' : 'Cannot invert', 'danger'); setStatus('Failed'); return; }
+        const h_g = params.mode==='density' ? (params.rho_g!==0 ? level * (params.rho_t/params.rho_g) : level) : level;
+        $('single_h').value = (h_g / params.factor_len).toFixed(6);
+        lastPoint = {h_g, h_true:level, v_m3:target_vol};
+        plotRows(table.length?table:[lastPoint], params);
+        drawDemo();
+        setStatus(LANG.current==='zh' ? '百分比反算完成' : 'Pct inverse done');
+        showToast(LANG.current==='zh' ? '完成' : 'Done','success');
+      }, 10);
+    }catch(err){ showToast(err.message,'danger'); }
+  }
+
+  // 动态加载脚本的辅助函数（返回 Promise）
+  function loadScriptOnce(src){
+    return new Promise((resolve, reject)=>{
+      // 检查已存在 script
+      for (const s of document.getElementsByTagName('script')){
+        if (s.src && s.src.indexOf(src) !== -1){
+          s.addEventListener('load', ()=>resolve());
+          s.addEventListener('error', ()=>reject(new Error('load failed')));
+          if (s.readyState === 'complete' || s.readyState === 'loaded') resolve();
+          return;
+        }
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = ()=>resolve();
+      script.onerror = ()=>reject(new Error('Script load error: '+src));
+      document.head.appendChild(script);
+    });
+  }
+
+  // XLSX & FileSaver 可用性检查与备用加载
+  async function ensureXLSX(){
+    if (window.XLSX) return true;
+    // 常用国内友好 jsDelivr 地址；若该地址不可用，可替换为其他镜像
+    const urls = [
+      'https://cdn.jsdelivr.net/npm/xlsx@0.19.1/dist/xlsx.full.min.js',
+      'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+    ];
+    for (const u of urls){
+      try{
+        await loadScriptOnce(u);
+        if (window.XLSX) return true;
+      }catch(e){
+        console.warn('loadScript failed', u, e);
+      }
+    }
+    return !!window.XLSX;
+  }
+  async function ensureFileSaver(){
+    if (window.saveAs) return true;
+    const urls = [
+      'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js'
+    ];
+    for (const u of urls){
+      try{
+        await loadScriptOnce(u);
+        if (window.saveAs) return true;
+      }catch(e){ console.warn('loadScript failed', u, e); }
+    }
+    return !!window.saveAs;
+  }
+
+  // XLSX export — enhanced robust (with dynamic load & retry)
+  async function exportXLSX(){
+    if (!table || table.length===0){ showToast(t('noData'),'warning'); return; }
+    setStatus(LANG.current==='zh' ? '准备导出...' : 'Preparing export...');
+    try{
+      // ensure libs
+      const ok1 = await ensureXLSX();
+      const ok2 = await ensureFileSaver();
+      if (!ok1){ showToast(LANG.current==='zh' ? '未能加载 XLSX 库，请检查网络或更换 CDN' : 'Failed to load XLSX library, check network or CDN','danger'); setStatus('Failed'); return; }
+      if (!ok2){ showToast(LANG.current==='zh' ? '未能加载 FileSaver 库，请检查网络' : 'Failed to load FileSaver library','danger'); setStatus('Failed'); return; }
+
+      const params = parseParams(false);
+      const wb = XLSX.utils.book_new();
+
+      const header = [LANG.current==='zh' ? '表显液位' : 'h_g (m)', LANG.current==='zh' ? '真实液位' : 'h_true (m)', LANG.current==='zh' ? '体积 (m^3)' : 'V (m^3)', `${LANG.current==='zh' ? '体积' : 'Volume'} (${params.volUnit})`, LANG.current==='zh' ? '满罐(%)' : 'Pct'];
+      const ws_data = [header];
+      table.forEach(r => ws_data.push([Number((r.h_g).toFixed(6)), Number((r.h_true).toFixed(6)), Number((r.v_m3).toFixed(9)), Number((toOutputUnit(r.v_m3, params.volUnit)).toFixed(6)), Number(r.pct_full.toFixed(6))]));
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      ws['!cols'] = [{wpx:90},{wpx:90},{wpx:110},{wpx:120},{wpx:80}];
+      XLSX.utils.book_append_sheet(wb, ws, 'Data');
+
+      const meta = {
+        generatedAt: (new Date()).toISOString(),
+        author: 'LZY',
+        email: 'lzy.ok@outlook.com',
+        inputs: {
+          D: $('D').value + $('lenUnit').value,
+          H: $('H').value + $('lenUnit').value,
+          h_head: $('h_head').value + $('lenUnit').value,
+          mode: params.mode,
+          rho_g: params.rho_g,
+          rho_t: params.rho_t,
+          step: $('step').value + $('lenUnit').value,
+          volUnit: params.volUnit,
+          plotUnit: params.plotUnit,
+          startLevel: $('startLevel').value || 'auto',
+          endLevel: $('endLevel').value || 'auto'
+        }
+      };
+      const metaArr = [['Key','Value']];
+      metaArr.push(['generatedAt', meta.generatedAt]);
+      metaArr.push(['author', meta.author]);
+      metaArr.push(['email', meta.email]);
+      Object.entries(meta.inputs).forEach(([k,v])=> metaArr.push([k, String(v)]) );
+      const wsMeta = XLSX.utils.aoa_to_sheet(metaArr);
+      wsMeta['!cols'] = [{wpx:180},{wpx:300}];
+      XLSX.utils.book_append_sheet(wb, wsMeta, 'Parameters');
+
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      const blob = new Blob([wbout], {type:'application/octet-stream'});
+      const filename = 'tank_table_' + (new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_') + '.xlsx';
+      try{
+        saveAs(blob, filename);
+        showToast(t('exportOk'),'success');
+        setStatus(t('done'));
+      }catch(err){
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=> URL.revokeObjectURL(url), 2000);
+        showToast(t('exportOk') + ' (fallback)','success');
+        setStatus(t('done'));
+      }
+    }catch(err){
+      console.error(err);
+      showToast((LANG.current==='zh'?'导出失败: ':'Export failed: ')+err.message,'danger');
+      setStatus('Failed');
+    }
+  }
+
+  function exportCSV(){
+    if (!table || table.length===0){ showToast(t('noData'),'warning'); return; }
+    try{
+      const params = parseParams(false);
+      const header = ['h_g_m','h_true_m','v_m3', 'v_out_'+params.volUnit, 'pct_full'];
+      const rows = [header].concat(table.map(r => [r.h_g, r.h_true, r.v_m3, toOutputUnit(r.v_m3, params.volUnit), r.pct_full]));
+      const csv = rows.map(r => r.map(c => String(c)).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      // try to use saveAs; if not available, fallback to anchor
+      if (window.saveAs){
+        saveAs(blob, 'tank_table.csv');
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'tank_table.csv';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      }
+      showToast(LANG.current==='zh' ? 'CSV 已导出' : 'CSV exported', 'success');
+    }catch(err){ showToast((LANG.current==='zh'?'CSV 导出失败: ':'CSV export failed: ')+err.message,'danger'); }
+  }
+
+  async function copyCSV(){
+    if (!table || table.length===0){ showToast(t('noData'),'warning'); return; }
+    const params = parseParams(false);
+    const header = ['h_g_m','h_true_m','v_m3', 'v_out_'+params.volUnit, 'pct_full'];
+    const rows = [header].concat(table.map(r => [r.h_g, r.h_true, r.v_m3, toOutputUnit(r.v_m3, params.volUnit), r.pct_full]));
+    const csv = rows.map(r => r.map(c => String(c)).join(',')).join('\n');
+    try{
+      await navigator.clipboard.writeText(csv);
+      showToast(t('copied'),'success');
+    }catch(e){
+      const blob = new Blob([csv], {type:'text/csv'});
+      if (window.saveAs) saveAs(blob, 'tank_table.csv'); else { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='tank_table.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+      showToast(LANG.current==='zh'?'复制失败，已下载 CSV':'Copy failed, CSV downloaded','info');
+    }
+  }
+
+  function copyTable(){ copyCSV(); }
+
+  function copyPlotData(){
+    if (!table || table.length===0){ showToast(t('noData'),'warning'); return; }
+    const params = parseParams(false);
+    const rows = table.map(r => [r.h_g, r.v_m3 * (UNIT_FACTORS[params.plotUnit]||1.0)]);
+    const csv = ['h_g_m, V_'+params.plotUnit].concat(rows.map(r => r.join(','))).join('\n');
+    navigator.clipboard.writeText(csv).then(()=> showToast(t('copied'),'success')).catch(()=>{ const blob=new Blob([csv],{type:'text/csv'}); if (window.saveAs) saveAs(blob,'plot_data.csv'); else { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='plot_data.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); } showToast(LANG.current==='zh'?'复制失败，已下载':'Copy failed, downloaded','info'); });
+  }
+
+  function exportPlotImg(){
+    Plotly.toImage('plot', {format:'png', height:600, width:900}).then(dataUrl=>{
+      const blob = dataURItoBlob(dataUrl);
+      if (window.saveAs) saveAs(blob, 'plot.png'); else { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='plot.png'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+    }).catch(err=> showToast((LANG.current==='zh'?'导出图像失败':'Export image failed'),'danger'));
+  }
+  function dataURItoBlob(dataURI){
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length); const ia = new Uint8Array(ab);
+    for (let i=0;i<byteString.length;i++) ia[i]=byteString.charCodeAt(i);
+    return new Blob([ab], {type:mimeString});
+  }
+
+  function updateParamMeta(params){
+    const meta = {
+      generatedAt: (new Date()).toISOString(),
+      author: 'LZY',
+      email: 'lzy.ok@outlook.com',
+      inputs: {
+        D: $('D').value + $('lenUnit').value,
+        H: $('H').value + $('lenUnit').value,
+        h_head: $('h_head').value + $('lenUnit').value,
+        mode: params.mode,
+        rho_g: params.rho_g,
+        rho_t: params.rho_t,
+        step: $('step').value + $('lenUnit').value,
+        volUnit: params.volUnit,
+        plotUnit: params.plotUnit,
+        startLevel: $('startLevel').value || 'auto',
+        endLevel: $('endLevel').value || 'auto'
+      }
+    };
+    $('paramMeta').textContent = JSON.stringify(meta, null, 2);
+  }
+
+  /* Drag improvements */
+  function drawDemo(){
+    const svg = $('demoSVG');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const params = parseParams(false);
+    const D = params.D, H = params.H, head = params.h;
+    const typ = params.tank_type;
+    const factor_len = params.factor_len;
+    const bbox = svg.getBoundingClientRect();
+    const w = bbox.width || 1000, h = bbox.height || 400;
+
+    let h_g_input = parseFloat($('single_h').value);
+    if (isNaN(h_g_input)) h_g_input = 0;
+    const h_g = h_g_input * factor_len;
+    const h_true = params.mode==='density' && params.rho_t!==0 ? h_g * (params.rho_g / params.rho_t) : h_g;
+
+    if (typ==='vertical'){
+      const pad = 20;
+      const total_h = H + 2*head;
+      const scale = (h - 2*pad) / (total_h || 1);
+      const cx = w/2;
+      const radius_pix = (D*scale)/2;
+      const cyl_top = pad + head*scale;
+      const cyl_bottom = cyl_top + H*scale;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', cx - radius_pix);
+      rect.setAttribute('y', cyl_top);
+      rect.setAttribute('width', 2*radius_pix);
+      rect.setAttribute('height', Math.max(1, cyl_bottom - cyl_top));
+      rect.setAttribute('fill','#eef'); rect.setAttribute('stroke','#333');
+      svg.appendChild(rect);
+
+      const topArc = document.createElementNS('http://www.w3.org/2000/svg','path');
+      topArc.setAttribute('d', `M ${cx-radius_pix} ${cyl_top} A ${radius_pix} ${radius_pix} 0 0 1 ${cx+radius_pix} ${cyl_top}`);
+      topArc.setAttribute('fill','#eef'); topArc.setAttribute('stroke','#333'); svg.appendChild(topArc);
+      const botArc = document.createElementNS('http://www.w3.org/2000/svg','path');
+      botArc.setAttribute('d', `M ${cx-radius_pix} ${cyl_bottom} A ${radius_pix} ${radius_pix} 0 0 0 ${cx+radius_pix} ${cyl_bottom}`);
+      botArc.setAttribute('fill','#eef'); botArc.setAttribute('stroke','#333'); svg.appendChild(botArc);
+
+      function y_of_h(val){ return cyl_bottom - val*scale; }
+      const y_g = y_of_h(h_g);
+      const line_g = document.createElementNS('http://www.w3.org/2000/svg','rect'); // use rect as thick handle
+      line_g.setAttribute('x', cx - radius_pix - 8);
+      line_g.setAttribute('y', y_g - 8);
+      line_g.setAttribute('width', 2*radius_pix + 16);
+      line_g.setAttribute('height', 16);
+      line_g.setAttribute('fill','rgba(255,0,0,0.15)');
+      line_g.setAttribute('stroke','red');
+      line_g.classList.add('drag-handle');
+      svg.appendChild(line_g);
+      makeDraggable(line_g, 'h_g', {type:'vertical', top:cyl_top, bottom:cyl_bottom, scale, factor_len});
+
+      const y_t = y_of_h(h_true);
+      const line_t = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      line_t.setAttribute('x', cx - radius_pix - 8);
+      line_t.setAttribute('y', y_t - 8);
+      line_t.setAttribute('width', 2*radius_pix + 16);
+      line_t.setAttribute('height', 16);
+      line_t.setAttribute('fill','rgba(0,128,0,0.12)');
+      line_t.setAttribute('stroke','green');
+      line_t.classList.add('drag-handle');
+      svg.appendChild(line_t);
+      makeDraggable(line_t, 'h_true', {type:'vertical', top:cyl_top, bottom:cyl_bottom, scale, factor_len});
+
+      const lab1 = document.createElementNS('http://www.w3.org/2000/svg','text');
+      lab1.setAttribute('x', cx + radius_pix + 10); lab1.setAttribute('y', y_g+4); lab1.setAttribute('fill','red'); lab1.setAttribute('font-size','12');
+      lab1.textContent = `${LANG.current==='zh' ? '表显 h' : 'h_g'}: ${(h_g/factor_len).toFixed(4)} ${$('lenUnit').value}`; svg.appendChild(lab1);
+      const lab2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+      lab2.setAttribute('x', cx + radius_pix + 10); lab2.setAttribute('y', y_t+18); lab2.setAttribute('fill','green'); lab2.setAttribute('font-size','12');
+      lab2.textContent = `${LANG.current==='zh' ? '真实 h' : 'h_true'}: ${(h_true/factor_len).toFixed(4)} ${$('lenUnit').value}`; svg.appendChild(lab2);
+
+    } else {
+      const pad = 20;
+      const L = params.H;
+      const total_l = L + 2*head;
+      const scale_x = (w - 2*pad) / (total_l || 1);
+      const scale_y = (h - 2*pad) / (params.D || 1);
+      const scale = Math.min(scale_x, scale_y);
+      const left_x = pad, right_x = pad + total_l*scale;
+      const center_y = h/2, radius_pix = (params.D*scale)/2;
+      const cyl_left = left_x + head*scale, cyl_right = right_x - head*scale;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', cyl_left); rect.setAttribute('y', center_y - radius_pix);
+      rect.setAttribute('width', Math.max(1, cyl_right - cyl_left)); rect.setAttribute('height', 2*radius_pix);
+      rect.setAttribute('fill','#eef'); rect.setAttribute('stroke','#333'); svg.appendChild(rect);
+
+      const leftArc = document.createElementNS('http://www.w3.org/2000/svg','path');
+      leftArc.setAttribute('d', `M ${cyl_left} ${center_y - radius_pix} A ${radius_pix} ${radius_pix} 0 0 0 ${cyl_left} ${center_y + radius_pix}`);
+      leftArc.setAttribute('fill','#eef'); leftArc.setAttribute('stroke','#333'); svg.appendChild(leftArc);
+      const rightArc = document.createElementNS('http://www.w3.org/2000/svg','path');
+      rightArc.setAttribute('d', `M ${cyl_right} ${center_y - radius_pix} A ${radius_pix} ${radius_pix} 0 0 1 ${cyl_right} ${center_y + radius_pix}`);
+      rightArc.setAttribute('fill','#eef'); rightArc.setAttribute('stroke','#333'); svg.appendChild(rightArc);
+
+      function y_of_level(level_val){
+        const bottom = center_y + radius_pix;
+        return bottom - (level_val * (2*radius_pix) / params.D);
+      }
+
+      const y_g = y_of_level(h_g);
+      const handle_g = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      handle_g.setAttribute('x', cyl_left - 8);
+      handle_g.setAttribute('y', y_g - 10);
+      handle_g.setAttribute('width', cyl_right - cyl_left + 16);
+      handle_g.setAttribute('height', 20);
+      handle_g.setAttribute('fill','rgba(255,0,0,0.15)');
+      handle_g.setAttribute('stroke','red');
+      handle_g.classList.add('drag-handle');
+      svg.appendChild(handle_g);
+      makeDraggable(handle_g, 'h_g', {type:'horizontal', center_y, radius_pix, D:params.D, factor_len});
+
+      const y_t = y_of_level(h_true);
+      const handle_t = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      handle_t.setAttribute('x', cyl_left - 8);
+      handle_t.setAttribute('y', y_t - 10);
+      handle_t.setAttribute('width', cyl_right - cyl_left + 16);
+      handle_t.setAttribute('height', 20);
+      handle_t.setAttribute('fill','rgba(0,128,0,0.12)');
+      handle_t.setAttribute('stroke','green');
+      handle_t.classList.add('drag-handle');
+      svg.appendChild(handle_t);
+      makeDraggable(handle_t, 'h_true', {type:'horizontal', center_y, radius_pix, D:params.D, factor_len});
+
+      const lab1 = document.createElementNS('http://www.w3.org/2000/svg','text');
+      lab1.setAttribute('x', cyl_right + 10); lab1.setAttribute('y', y_g+4); lab1.setAttribute('fill','red'); lab1.setAttribute('font-size','12');
+      lab1.textContent = `${LANG.current==='zh' ? '表显 h' : 'h_g'}: ${(h_g/factor_len).toFixed(4)} ${$('lenUnit').value}`; svg.appendChild(lab1);
+    }
+  }
+
+  let drag = { active:false, tag:null, geom:null, lastY:0, rafId:null };
+  function makeDraggable(el, tag, geom){
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', (ev)=>{
+      ev.preventDefault();
+      (ev.target).setPointerCapture && (ev.target).setPointerCapture(ev.pointerId);
+      drag.active = true; drag.tag = tag; drag.geom = geom; drag.lastY = ev.clientY;
+      showOverlayValue(true);
+    });
+    window.addEventListener('pointermove', (ev)=>{
+      if (!drag.active) return;
+      ev.preventDefault();
+      drag.lastY = ev.clientY;
+      if (!drag.rafId){
+        drag.rafId = requestAnimationFrame(()=>{ handleDragMove(); drag.rafId = null; });
+      }
+    });
+    window.addEventListener('pointerup', (ev)=>{
+      if (!drag.active) return;
+      drag.active = false; drag.tag = null; drag.geom = null;
+      showOverlayValue(false);
+      setStatus(LANG.current==='zh' ? '刷新高精度结果...' : 'Refreshing high-precision result...');
+      setTimeout(()=>{ try{ const params = parseParams(false); if (lastPoint){ const h_true_val = lastPoint.h_true !== undefined ? lastPoint.h_true : (params.mode==='density' ? lastPoint.h_g * (params.rho_g/params.rho_t||1.0) : lastPoint.h_g); const v_m3 = params.tank_type==='vertical' ? math.volume_vertical_from_gauge(params.D, params.H, params.h, h_true_val) : math.volume_horizontal_from_gauge(params.D, params.H, params.h, h_true_val, params.intAbs, params.intRel); lastPoint.v_m3 = v_m3; plotRows(table.length?table:[lastPoint], params); drawDemo(); setStatus(t('done')); } }catch(e){ setStatus('Error'); } }, 10);
+    });
+
+    function handleDragMove(){
+      if (!drag.active) return;
+      const clientY = drag.lastY;
+      const svg = $('demoSVG');
+      const rect = svg.getBoundingClientRect();
+      const y = clientY - rect.top;
+      const g = drag.geom;
+      let val;
+      try{
+        if (g.type === 'vertical'){
+          const y_clamped = Math.min(Math.max(y, g.top), g.bottom);
+          val = (g.bottom - y_clamped) / g.scale;
+        } else {
+          const bottom = g.center_y + g.radius_pix;
+          const top = g.center_y - g.radius_pix;
+          const y_clamped = Math.min(Math.max(y, top), bottom);
+          val = (bottom - y_clamped) * g.D / (2*g.radius_pix);
+        }
+        const params = parseParams(false);
+        if (drag.tag === 'h_g'){
+          $('single_h').value = (val / params.factor_len).toFixed(6);
+          const h_true = params.mode==='density' ? val * (params.rho_g / params.rho_t || 1.0) : val;
+          const quickIntAbs = params.intAbs * 50;
+          const quickIntRel = params.intRel * 50;
+          const v_m3 = params.tank_type==='vertical' ? math.volume_vertical_from_gauge(params.D, params.H, params.h, h_true) : math.volume_horizontal_from_gauge(params.D, params.H, params.h, h_true, quickIntAbs, quickIntRel);
+          lastPoint = {h_g:val, h_true, v_m3};
+          plotRows(table.length?table:[lastPoint], params);
+          drawDemo();
+          showOverlayText((LANG.current==='zh'?'h_g: ':'h_g: ')+ (val/params.factor_len).toFixed(4)+' '+$('lenUnit').value + '  V=' + v_m3.toFixed(6)+' m^3');
+        } else {
+          const h_val = val;
+          const h_g = params.mode==='density' ? (params.rho_t!==0 ? h_val * (params.rho_t / params.rho_g) : h_val) : h_val;
+          $('single_h').value = (h_g / params.factor_len).toFixed(6);
+          const quickIntAbs = params.intAbs * 50;
+          const quickIntRel = params.intRel * 50;
+          const v_m3 = params.tank_type==='vertical' ? math.volume_vertical_from_gauge(params.D, params.H, params.h, h_val) : math.volume_horizontal_from_gauge(params.D, params.H, params.h, h_val, quickIntAbs, quickIntRel);
+          lastPoint = {h_g, h_true:h_val, v_m3};
+          plotRows(table.length?table:[lastPoint], params);
+          drawDemo();
+          showOverlayText((LANG.current==='zh'?'h_true: ':'h_true: ')+ (h_val/params.factor_len).toFixed(4)+' '+$('lenUnit').value + '  V=' + v_m3.toFixed(6)+' m^3');
+        }
+      }catch(e){}
+    }
+  }
+
+  let overlayEl = null;
+  function showOverlayValue(show){
+    if (show){
+      if (!overlayEl){
+        overlayEl = document.createElement('div');
+        overlayEl.style.position='fixed'; overlayEl.style.left='50%'; overlayEl.style.top='8%'; overlayEl.style.transform='translateX(-50%)';
+        overlayEl.style.background='rgba(0,0,0,0.7)'; overlayEl.style.color='#fff'; overlayEl.style.padding='8px 12px'; overlayEl.style.borderRadius='6px';
+        overlayEl.style.zIndex=2000; overlayEl.style.fontFamily='monospace';
+        document.body.appendChild(overlayEl);
+      }
+      overlayEl.style.display='block';
+    } else {
+      if (overlayEl) overlayEl.style.display='none';
+    }
+  }
+  function showOverlayText(txt){ if (!overlayEl) showOverlayValue(true); overlayEl.textContent = txt; }
+
+  function showToast(msg, type='info', time=3000){
+    const container = document.querySelector('.toast-container');
+    const el = document.createElement('div'); el.className = 'toast align-items-center text-bg-light border'; el.role='alert';
+    el.style.minWidth='220px';
+    el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+    container.appendChild(el);
+    const bs = new bootstrap.Toast(el, {delay: time});
+    bs.show();
+    el.addEventListener('hidden.bs.toast', ()=>el.remove());
+  }
+
+  function saveParams(){ const inputs = getAllInputs(); localStorage.setItem('tank_params_v2', JSON.stringify(inputs)); showToast(t('saveOk'),'success'); }
+  function loadParams(){ const s = localStorage.getItem('tank_params_v2'); if (!s) { showToast(LANG.current==='zh'?'无已保存参数':'No saved params','warning'); return; } setAllInputs(JSON.parse(s)); showToast(t('loadOk'),'success'); }
+
+  function getAllInputs(){
+    return {
+      D:$('D').value, H:$('H').value, h_head:$('h_head').value, lenUnit:$('lenUnit').value,
+      mode:$('mode').value, rho_g:$('rho_g').value, rho_t:$('rho_t').value,
+      step:$('step').value, epsPanel:$('epsPanel').value, speedMode:$('speedMode').value,
+      volUnit:$('volUnit').value, plotUnit:$('plotUnit').value, tankType:$('tankType').value,
+      startLevel:$('startLevel').value, endLevel:$('endLevel').value
+    };
+  }
+  function setAllInputs(obj){
+    if (!obj) return;
+    $('D').value = obj.D||$('D').value; $('H').value = obj.H||$('H').value; $('h_head').value = obj.h_head||$('h_head').value;
+    $('lenUnit').value = obj.lenUnit||$('lenUnit').value; $('mode').value = obj.mode||$('mode').value;
+    $('rho_g').value = obj.rho_g||$('rho_g').value; $('rho_t').value = obj.rho_t||$('rho_t').value;
+    $('step').value = obj.step||$('step').value; $('epsPanel').value = obj.epsPanel||$('epsPanel').value;
+    if ($('speedMode')) $('speedMode').value = obj.speedMode||$('speedMode').value;
+    $('volUnit').value = obj.volUnit||$('volUnit').value; $('plotUnit').value = obj.plotUnit||$('plotUnit').value;
+    $('tankType').value = obj.tankType||$('tankType').value;
+    $('startLevel').value = obj.startLevel||$('startLevel').value; $('endLevel').value = obj.endLevel||$('endLevel').value;
+    drawDemo();
+  }
+
+  // event bindings
+  $('genBtn').addEventListener('click', generateTable);
+  $('exportBtn').addEventListener('click', exportXLSX);
+  $('csvBtn').addEventListener('click', exportCSV);
+  $('clearBtn').addEventListener('click', ()=>{ table=[]; document.querySelector('#dataTable tbody').innerHTML=''; Plotly.purge('plot'); $('rowCount').textContent=(LANG.current==='zh'?'0 行':'0 rows'); setStatus(LANG.current==='zh'?'已清除':'Cleared'); });
+  $('calcBtn').addEventListener('click', singleCalc);
+  $('inverseBtn').addEventListener('click', inverseCalc);
+  $('pctBtn').addEventListener('click', pctToLevel);
+  $('copyTable').addEventListener('click', copyTable);
+  $('downloadCSV').addEventListener('click', exportCSV);
+  $('plotCopy').addEventListener('click', copyPlotData);
+  $('plotImg').addEventListener('click', exportPlotImg);
+  $('saveParams').addEventListener('click', saveParams);
+  $('loadParams').addEventListener('click', loadParams);
+
+  Plotly.newPlot('plot', [{x:[], y:[], mode:'lines'}], {margin:{l:40,r:20,t:20,b:40}}, {responsive:true,displayModeBar:true});
+  drawDemo();
+  setStatus(t('ready'));
+
+  let redrawTimer = null;
+  ['D','H','h_head','lenUnit','single_h','mode','rho_g','rho_t','startLevel','endLevel'].forEach(id=>{
+    if ($(id)) $(id).addEventListener('input', ()=>{ clearTimeout(redrawTimer); redrawTimer=setTimeout(()=>{ drawDemo(); }, 120); });
+  });
+
+  function applyLanguage(){
+    if (LANG.current==='zh'){
+      $('title').textContent = '液位-体积对照表（增强版）';
+      $('lblTankType').textContent = '容器类型';
+      $('lblD').textContent = '直径 D';
+      $('noteD').textContent = '直径单位';
+      $('lblH').textContent = 'H / L';
+      $('noteH').textContent = '高度 / 长度，同上长度单位';
+      $('lblHead').textContent = '封头 h';
+      $('noteHead').textContent = '默认 = 直径的 1/4';
+      $('lblMode').textContent = '模式';
+      $('lblStep').textContent = '步长';
+      $('noteStep').textContent = '同长度单位';
+      $('lblEps').textContent = '积分 eps';
+      $('lblVolUnit').textContent = '输出体积单位';
+      $('lblPlotUnit').textContent = '图表体积单位';
+      $('lblStart').textContent = '液位起点';
+      $('lblEnd').textContent = '液位终点';
+      $('noteStart').textContent = '留空=从0开始';
+      $('noteEnd').textContent = '留空=到满罐';
+      $('lblPrecision').textContent = '积分精度';
+      $('notePrecision').textContent = '拖动时使用快速模式进行近似，释放后高精度刷新';
+      $('genBtn').textContent = '生成对照表';
+      $('exportBtn').textContent = '导出 Excel (XLSX)';
+      $('csvBtn').textContent = '导出 CSV';
+      $('clearBtn').textContent = '清除表格';
+      $('lblDemo').textContent = '示意（可拖拽）';
+      $('calcBtn').textContent = '计算体积';
+      $('inverseBtn').textContent = '体积->液位';
+      $('pctBtn').textContent = '百分比->液高';
+      $('lblPlot').textContent = 'V(h) 曲线';
+      $('lblTable').textContent = '对照表';
+      $('th_hg').textContent = '表显液位';
+      $('th_ht').textContent = '真实液位';
+      $('th_v').textContent = '体积';
+      $('th_pct').textContent = '满罐(%)';
+      $('copyTable').textContent = '复制表格 CSV';
+      $('downloadCSV').textContent = '下载 CSV';
+    } else {
+      $('title').textContent = 'Level-Volume Table (Enhanced)';
+      $('lblTankType').textContent = 'Tank Type';
+      $('lblD').textContent = 'Diameter D';
+      $('noteD').textContent = 'Length unit';
+      $('lblH').textContent = 'H / L';
+      $('noteH').textContent = 'Height / Length (same unit)';
+      $('lblHead').textContent = 'Head h';
+      $('noteHead').textContent = 'Default = D / 4';
+      $('lblMode').textContent = 'Mode';
+      $('lblStep').textContent = 'Step';
+      $('noteStep').textContent = 'Same length unit';
+      $('lblEps').textContent = 'Integr eps';
+      $('lblVolUnit').textContent = 'Output volume unit';
+      $('lblPlotUnit').textContent = 'Plot volume unit';
+      $('lblStart').textContent = 'Start level';
+      $('lblEnd').textContent = 'End level';
+      $('noteStart').textContent = 'blank = from 0';
+      $('noteEnd').textContent = 'blank = to full';
+      $('lblPrecision').textContent = 'Integration precision';
+      $('notePrecision').textContent = 'Use fast approx while dragging; refine on release';
+      $('genBtn').textContent = 'Generate table';
+      $('exportBtn').textContent = 'Export Excel (XLSX)';
+      $('csvBtn').textContent = 'Export CSV';
+      $('clearBtn').textContent = 'Clear table';
+      $('lblDemo').textContent = 'Diagram (draggable)';
+      $('calcBtn').textContent = 'Calc volume';
+      $('inverseBtn').textContent = 'Volume -> Level';
+      $('pctBtn').textContent = 'Pct -> Level';
+      $('lblPlot').textContent = 'V(h) plot';
+      $('lblTable').textContent = 'Table';
+      $('th_hg').textContent = 'Gauge level';
+      $('th_ht').textContent = 'True level';
+      $('th_v').textContent = 'Volume';
+      $('th_pct').textContent = 'Full (%)';
+      $('copyTable').textContent = 'Copy CSV';
+      $('downloadCSV').textContent = 'Download CSV';
+    }
+    setStatus(t('ready'));
+    drawDemo();
+  }
+
+  $('lang').addEventListener('change', (e)=>{ LANG.current = e.target.value; applyLanguage(); });
+  applyLanguage();
+
+})(); // end UI module
+</script>
+
+<!-- Lazy load FileSaver and SheetJS are handled dynamically by export code if needed -->
+
+<!-- Bootstrap JS (jsDelivr) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
