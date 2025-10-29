@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>段家美，我爱你！</title>
     <style>
         * {
@@ -10,13 +10,16 @@
             padding: 0;
             box-sizing: border-box;
             font-family: 'Microsoft YaHei', sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
         
         body {
             background: linear-gradient(135deg, #ff4d6d, #ff8fa3, #ffb3c1, #ffccd5);
             height: 100vh;
+            width: 100vw;
             overflow: hidden;
-            position: relative;
+            position: fixed;
+            touch-action: manipulation;
         }
         
         .main-content {
@@ -26,66 +29,70 @@
             transform: translate(-50%, -50%);
             text-align: center;
             z-index: 100;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 30px 50px;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
-            max-width: 90%;
+            background: rgba(255, 255, 255, 0.92);
+            padding: 4vw 6vw;
+            border-radius: 5vw;
+            box-shadow: 0 4vw 8vw rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(2vw);
+            width: 90vw;
+            max-width: 500px;
         }
         
         h1 {
             color: #ff4d6d;
-            font-size: 3.5rem;
-            margin-bottom: 15px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            font-size: 7vw;
+            margin-bottom: 2vw;
+            text-shadow: 0.5vw 0.5vw 1vw rgba(0, 0, 0, 0.1);
         }
         
         .name {
             color: #c9184a;
-            font-size: 4.5rem;
+            font-size: 10vw;
             font-weight: bold;
-            margin: 20px 0;
-            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.15);
+            margin: 4vw 0;
+            text-shadow: 1vw 1vw 2vw rgba(0, 0, 0, 0.15);
             animation: pulse 2s infinite;
         }
         
         .subtitle {
             color: #666;
-            font-size: 1.5rem;
-            margin-bottom: 25px;
+            font-size: 4vw;
+            margin-bottom: 5vw;
         }
         
         .message {
             position: fixed;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 20px 30px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-            max-width: 400px;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 4vw;
+            padding: 4vw 6vw;
+            box-shadow: 0 2vw 6vw rgba(0, 0, 0, 0.3);
+            max-width: 80vw;
             text-align: center;
             z-index: 1000;
             animation: messageAppear 0.3s, messageFloat 2s infinite alternate;
-            font-size: 1.4rem;
+            font-size: 4.5vw;
             color: #ff4d6d;
-            border: 3px solid #ffccd5;
+            border: 1vw solid #ffccd5;
             font-weight: bold;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            text-shadow: 0.5vw 0.5vw 1vw rgba(0, 0, 0, 0.1);
+            word-wrap: break-word;
+            line-height: 1.4;
         }
         
         @keyframes messageAppear {
-            0% { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+            0% { opacity: 0; transform: scale(0.5) rotate(-15deg); }
+            70% { opacity: 1; transform: scale(1.1) rotate(5deg); }
             100% { opacity: 1; transform: scale(1) rotate(0); }
         }
         
         @keyframes messageFloat {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(-15px); }
+            0% { transform: translateY(0) rotate(-2deg); }
+            100% { transform: translateY(-3vw) rotate(2deg); }
         }
         
         @keyframes pulse {
             0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            50% { transform: scale(1.08); }
             100% { transform: scale(1); }
         }
         
@@ -101,8 +108,8 @@
         
         .heart {
             position: absolute;
-            width: 30px;
-            height: 30px;
+            width: 8vw;
+            height: 8vw;
             background: #ff4d6d;
             transform: rotate(45deg);
             opacity: 0.8;
@@ -112,21 +119,21 @@
         .heart::before,
         .heart::after {
             content: '';
-            width: 30px;
-            height: 30px;
+            width: 8vw;
+            height: 8vw;
             background: #ff4d6d;
             border-radius: 50%;
             position: absolute;
         }
         
         .heart::before {
-            top: -15px;
+            top: -4vw;
             left: 0;
         }
         
         .heart::after {
             top: 0;
-            left: -15px;
+            left: -4vw;
         }
         
         @keyframes heartFloat {
@@ -141,93 +148,215 @@
         }
         
         .counter {
-            margin-top: 20px;
+            margin-top: 4vw;
             color: #666;
-            font-size: 1.2rem;
+            font-size: 4vw;
             font-weight: bold;
         }
         
         .controls {
             display: flex;
-            gap: 15px;
+            gap: 3vw;
             justify-content: center;
-            margin-top: 25px;
+            margin-top: 5vw;
+            flex-wrap: wrap;
         }
         
         .btn {
             background: #ff4d6d;
             color: white;
             border: none;
-            padding: 15px 30px;
-            font-size: 1.1rem;
-            border-radius: 50px;
+            padding: 3vw 6vw;
+            font-size: 4vw;
+            border-radius: 10vw;
             cursor: pointer;
-            box-shadow: 0 5px 20px rgba(255, 77, 109, 0.4);
+            box-shadow: 0 1.5vw 4vw rgba(255, 77, 109, 0.4);
             transition: all 0.3s ease;
             font-weight: bold;
+            min-width: 35vw;
         }
         
         .btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(255, 77, 109, 0.6);
+            transform: translateY(-1.5vw);
+            box-shadow: 0 2.5vw 6vw rgba(255, 77, 109, 0.6);
         }
         
         .btn:active {
-            transform: translateY(2px);
+            transform: translateY(0.5vw);
         }
         
         .btn.secondary {
             background: #6c757d;
         }
         
-        /* 移动端适配 */
-        @media (max-width: 768px) {
+        /* 手机横屏适配 */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .main-content {
+                padding: 3vw 4vw;
+                width: 80vw;
+                max-width: none;
+            }
+            
             h1 {
-                font-size: 2.5rem;
+                font-size: 5vw;
             }
             
             .name {
-                font-size: 3.5rem;
+                font-size: 7vw;
+                margin: 2vw 0;
             }
             
             .subtitle {
-                font-size: 1.2rem;
+                font-size: 3vw;
+                margin-bottom: 3vw;
             }
             
             .btn {
-                padding: 12px 25px;
-                font-size: 1rem;
+                padding: 2vw 4vw;
+                font-size: 3vw;
+                min-width: 25vw;
             }
             
             .message {
-                max-width: 300px;
-                font-size: 1.2rem;
-                padding: 15px 25px;
-            }
-            
-            .main-content {
-                padding: 20px 30px;
+                font-size: 3.5vw;
+                padding: 3vw 4vw;
+                max-width: 60vw;
             }
         }
         
-        @media (max-width: 480px) {
+        /* 平板适配 */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            .main-content {
+                padding: 3vw 4vw;
+                border-radius: 3vw;
+            }
+            
             h1 {
-                font-size: 2rem;
+                font-size: 5vw;
             }
             
             .name {
-                font-size: 2.8rem;
+                font-size: 7vw;
+            }
+            
+            .subtitle {
+                font-size: 3vw;
             }
             
             .btn {
-                padding: 10px 20px;
-                font-size: 0.9rem;
+                font-size: 3vw;
+                padding: 2vw 4vw;
             }
             
-            .controls {
-                flex-direction: column;
-                align-items: center;
+            .message {
+                font-size: 3.5vw;
+                padding: 3vw 4vw;
             }
+        }
+        
+        /* 大屏手机适配 */
+        @media (min-width: 500px) and (max-width: 767px) {
+            .main-content {
+                padding: 5vw 6vw;
+            }
+            
+            h1 {
+                font-size: 6vw;
+            }
+            
+            .name {
+                font-size: 8vw;
+            }
+            
+            .subtitle {
+                font-size: 3.5vw;
+            }
+            
+            .btn {
+                font-size: 3.5vw;
+            }
+            
+            .message {
+                font-size: 4vw;
+            }
+        }
+        
+        /* 超小屏手机适配 */
+        @media (max-width: 320px) {
+            .main-content {
+                padding: 5vw;
+                width: 95vw;
+            }
+            
+            h1 {
+                font-size: 8vw;
+            }
+            
+            .name {
+                font-size: 11vw;
+            }
+            
+            .subtitle {
+                font-size: 4.5vw;
+            }
+            
+            .btn {
+                font-size: 4.5vw;
+                min-width: 40vw;
+            }
+            
+            .message {
+                font-size: 5vw;
+            }
+        }
+        
+        /* 弹窗多样化动画 */
+        .message-type1 {
+            animation: messageAppear1 0.4s, messageFloat1 2.5s infinite alternate;
+            background: linear-gradient(135deg, #fff, #ffe6ea);
+        }
+        
+        .message-type2 {
+            animation: messageAppear2 0.4s, messageFloat2 3s infinite alternate;
+            background: linear-gradient(135deg, #fff, #ffd6dd);
+            border-color: #ff8fa3;
+        }
+        
+        .message-type3 {
+            animation: messageAppear3 0.4s, messageFloat3 2.8s infinite alternate;
+            background: linear-gradient(135deg, #fff, #ffebef);
+            border-color: #ffb3c1;
+        }
+        
+        @keyframes messageAppear1 {
+            0% { opacity: 0; transform: translateY(100vh) scale(0.3) rotate(-20deg); }
+            100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+        }
+        
+        @keyframes messageAppear2 {
+            0% { opacity: 0; transform: translateX(-100vw) scale(0.5); }
+            100% { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        
+        @keyframes messageAppear3 {
+            0% { opacity: 0; transform: translateX(100vw) scale(0.5) rotate(30deg); }
+            100% { opacity: 1; transform: translateX(0) scale(1) rotate(0); }
+        }
+        
+        @keyframes messageFloat1 {
+            0% { transform: translateY(0) rotate(-3deg); }
+            100% { transform: translateY(-4vw) rotate(3deg); }
+        }
+        
+        @keyframes messageFloat2 {
+            0% { transform: translateY(0) scale(1); }
+            100% { transform: translateY(-3vw) scale(1.05); }
+        }
+        
+        @keyframes messageFloat3 {
+            0% { transform: translateY(0) rotate(0); }
+            50% { transform: translateY(-2vw) rotate(-2deg); }
+            100% { transform: translateY(-4vw) rotate(2deg); }
         }
     </style>
 </head>
@@ -313,7 +442,7 @@
             
             // 创建漂浮爱心
             function createHearts() {
-                for (let i = 0; i < 25; i++) {
+                for (let i = 0; i < 20; i++) {
                     setTimeout(() => {
                         const heart = document.createElement('div');
                         heart.classList.add('heart');
@@ -329,7 +458,7 @@
                                 heart.remove();
                             }
                         }, 6000);
-                    }, i * 100);
+                    }, i * 80);
                 }
             }
             
@@ -344,24 +473,24 @@
                 
                 const randomIndex = Math.floor(Math.random() * messages.length);
                 const message = messages[randomIndex];
+                const messageType = Math.floor(Math.random() * 3) + 1;
                 
                 const messageDiv = document.createElement('div');
                 messageDiv.classList.add('message');
+                messageDiv.classList.add(`message-type${messageType}`);
                 messageDiv.textContent = message;
                 
                 // 随机位置，确保不会完全遮挡中心内容
-                const maxX = window.innerWidth - 420;
-                const maxY = window.innerHeight - 120;
-                const centerX = window.innerWidth / 2;
-                const centerY = window.innerHeight / 2;
+                const maxX = window.innerWidth - (window.innerWidth * 0.8);
+                const maxY = window.innerHeight - (window.innerHeight * 0.2);
                 
                 let randomX, randomY;
                 do {
                     randomX = Math.floor(Math.random() * maxX);
                     randomY = Math.floor(Math.random() * maxY);
                 } while (
-                    Math.abs(randomX - centerX) < 250 && 
-                    Math.abs(randomY - centerY) < 200
+                    Math.abs(randomX - window.innerWidth/2) < window.innerWidth * 0.3 && 
+                    Math.abs(randomY - window.innerHeight/2) < window.innerHeight * 0.3
                 );
                 
                 messageDiv.style.left = randomX + 'px';
@@ -384,21 +513,21 @@
                 // 初始延迟后开始弹窗
                 setTimeout(() => {
                     // 快速连续显示多个弹窗
-                    for (let i = 0; i < 30; i++) {
+                    for (let i = 0; i < 25; i++) {
                         setTimeout(() => {
                             showRandomMessage();
-                        }, i * 80);
+                        }, i * 60);
                     }
                     
                     // 然后设置持续弹窗
                     messageInterval = setInterval(() => {
-                        for (let i = 0; i < 5; i++) {
+                        for (let i = 0; i < 6; i++) {
                             setTimeout(() => {
                                 showRandomMessage();
-                            }, i * 150);
+                            }, i * 120);
                         }
-                    }, 1000);
-                }, 500);
+                    }, 800);
+                }, 300);
             }
             
             // 暂停/继续弹窗
@@ -425,6 +554,16 @@
             
             // 页面加载后开始弹窗
             startMessages();
+            
+            // 防止手机端双击缩放
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function (event) {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
         });
     </script>
 </body>
